@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>DigiCam</title>
+<style>
+:root{--body:#b9bcc2;--body2:#8e929a;--lcd:#0a0f18;--hud:#e8f2ff;--acc:#2f7bff;--stamp:#ff9a1f}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:#1b1d21;font-family:"Trebuchet MS",Verdana,sans-serif;color:#111}
+body{display:flex;justify-content:center;align-items:center;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.cam{width:min(98vw,calc(98vh*1.6),900px);aspect-ratio:8/5;background:linear-gradient(160deg,var(--body),var(--body2));border-radius:3% / 5%;padding:2.5%;display:flex;flex-direction:row;gap:3%;box-shadow:inset 0 2px 0 #fff8,0 10px 40px #000a}
+.main{height:100%;display:flex;flex-direction:column;gap:2%;min-width:0}
+.side{flex:1;display:flex;flex-direction:column;justify-content:space-around;align-items:center;gap:6px;min-width:0}
+.side .row{flex-direction:column;width:100%}
+.side .pill{width:100%}
+.ctrl{width:100%}
+@media (orientation:portrait){.cam{position:fixed;top:0;left:0;width:100vh;height:100vw;max-width:none;aspect-ratio:auto;transform-origin:top left;transform:translateX(100vw) rotate(90deg);border-radius:0}}
+.brand{display:flex;justify-content:space-between;align-items:center;font-weight:700;letter-spacing:.5px}
+.brand b{font-size:18px;font-style:italic}.brand span{font-size:11px;color:#333}
+.lcd{position:relative;flex:1;min-height:0;aspect-ratio:4/3;align-self:flex-start;background:var(--lcd);border-radius:8px;border:5px solid #2b2e34;overflow:hidden}
+canvas#view{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.hud{position:absolute;inset:0;pointer-events:none;color:var(--hud);font:12px/1 "Courier New",monospace;text-shadow:0 0 3px #000}
+.hud .tl{position:absolute;left:8px;top:8px}.hud .tr{position:absolute;right:8px;top:8px;text-align:right}
+.hud .bl{position:absolute;left:8px;bottom:8px}.hud .br{position:absolute;right:8px;bottom:8px}
+.corner{position:absolute;width:18px;height:18px;border:2px solid #fff9}
+.c1{left:22%;top:26%;border-right:0;border-bottom:0}.c2{right:22%;top:26%;border-left:0;border-bottom:0}
+.c3{left:22%;bottom:26%;border-right:0;border-top:0}.c4{right:22%;bottom:26%;border-left:0;border-top:0}
+.ctrl{display:flex;align-items:center;justify-content:space-between;gap:10px}
+button{font:inherit;cursor:pointer;border:0;color:#111}
+.pill{background:linear-gradient(#f4f5f7,#c9ccd2);border-radius:20px;padding:8px 10px;font-size:13px;box-shadow:0 2px 0 #7d8088,inset 0 1px #fff}
+.pill:active{transform:translateY(1px)}
+.shutter{width:clamp(48px,11vw,76px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#aeb2ba 60%,#6f737b);box-shadow:0 3px 0 #555,0 0 0 5px #0003}
+.shutter:active{transform:scale(.95)}
+.eff{flex:1;text-align:center;font-size:12px;font-weight:700}
+.row{display:flex;gap:8px;justify-content:center}
+.screen{position:fixed;inset:0;background:#14161aee;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;z-index:9;color:#fff;text-align:center;gap:12px}
+.screen.on{display:flex}
+.screen input{font-size:24px;text-align:center;width:200px;padding:10px;border-radius:10px;border:2px solid var(--acc);background:#000;color:#fff;letter-spacing:6px}
+.screen p{max-width:320px;font-size:14px;margin:0;color:#c8ccd4}
+#err{color:#ff8a8a;min-height:18px;font-size:13px}
+#gal{justify-content:flex-start;overflow:auto;padding-top:calc(20px + env(safe-area-inset-top))}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:min(100%,460px)}
+.grid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;cursor:pointer;background:#222}
+#big{max-width:100%;max-height:60vh;border-radius:6px}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.flash.go{animation:fl .25s}@keyframes fl{from{opacity:.9}to{opacity:0}}
+@media (prefers-reduced-motion:reduce){.flash.go{animation:none}}
+</style>
+</head>
+<body>
+<div class="cam">
+ <div class="main">
+  <div class="brand"><b>DigiCam</b><span>CYBER-SHOT STYLE · 12.1 MEGA PIXELS</span></div>
+  <div class="lcd">
+    <canvas id="view" width="640" height="480"></canvas>
+    <div class="hud">
+      <i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i>
+      <div class="tl" id="hMode">AUTO</div>
+      <div class="tr" id="hInfo">▮▮▮ 0</div>
+      <div class="bl" id="hEff">NORMAL</div>
+      <div class="br" id="hSize">4:3</div>
+    </div>
+    <div class="flash" id="flash"></div>
+  </div>
+ </div>
+ <div class="side">
+  <div class="ctrl">
+    <button class="pill" id="prev" aria-label="Previous effect">◀</button>
+    <div class="eff" id="effName">Normal</div>
+    <button class="pill" id="next" aria-label="Next effect">▶</button>
+  </div>
+  <button class="shutter" id="shot" aria-label="Take photo"></button>
+  <div class="row">
+    <button class="pill" id="openGal">Photos</button>
+    <button class="pill" id="flip" aria-label="Switch camera">Flip camera</button>
+    <button class="pill" id="stampBtn">Date: on</button>
+  </div>
+ </div>
+</div>
+
+<div class="screen on" id="lock">
+  <h2 id="lockTitle">DigiCam</h2>
+  <p id="lockMsg"></p>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="PIN">
+  <input id="pin2" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Repeat PIN" style="display:none">
+  <div id="err"></div>
+  <button class="pill" id="unlock">Continue</button>
+</div>
+
+<div class="screen" id="gal">
+  <div class="row"><button class="pill" id="closeGal">Back to camera</button></div>
+  <div class="grid" id="grid"></div>
+  <p id="empty" style="display:none">No photos yet. Take one with the shutter button.</p>
+</div>
+
+<div class="screen" id="viewer">
+  <img id="big" alt="Selected photo">
+  <div class="row">
+    <button class="pill" id="vBack">Close</button>
+    <button class="pill" id="vSave">Save copy to device</button>
+    <button class="pill" id="vDel">Delete</button>
+  </div>
+</div>
+
+<video id="vid" playsinline muted style="display:none"></video>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const enc=new TextEncoder(),dec=new TextDecoder();
+
+/* ---------- Private encrypted storage (IndexedDB + AES-GCM, key from PIN) ---------- */
+let db,key;
+const idb=()=>new Promise((res,rej)=>{
+  const r=indexedDB.open("digicam-private",1);
+  r.onupgradeneeded=()=>{r.result.createObjectStore("meta");r.result.createObjectStore("shots",{keyPath:"id",autoIncrement:true});};
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+});
+const tx=(s,m="readonly")=>db.transaction(s,m).objectStore(s);
+const rq=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
+async function derive(pin,salt){
+  const base=await crypto.subtle.importKey("raw",enc.encode(pin),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:200000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function seal(bytes){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  return {iv,data:await crypto.subtle.encrypt({name:"AES-GCM",iv},key,bytes)};
+}
+const open=o=>crypto.subtle.decrypt({name:"AES-GCM",iv:o.iv},key,o.data);
+
+/* ---------- Effects ---------- */
+const FX=[
+ {id:"normal",name:"Normal"},
+ {id:"ccd",name:"Vintage CCD"},
+ {id:"sepia",name:"Sepia"},
+ {id:"bw",name:"Black & White"},
+ {id:"vivid",name:"Vivid"},
+ {id:"cool",name:"Cool Blue"},
+ {id:"neg",name:"Negative"},
+ {id:"lofi",name:"Low-Res VGA"}
+];
+let fxIdx=1,stamp=true;
+const cl=v=>v<0?0:v>255?255:v;
+function applyFx(ctx,w,h,id){
+  if(id==="normal"||id==="lofi")return;
+  const img=ctx.getImageData(0,0,w,h),d=img.data;
+  for(let i=0;i<d.length;i+=4){
+    let r=d[i],g=d[i+1],b=d[i+2];
+    const l=.299*r+.587*g+.114*b;
+    switch(id){
+      case"ccd":{
+        r=(r-128)*1.18+128;g=(g-128)*1.12+128;b=(b-128)*1.12+128;       // punchy contrast
+        const L=.299*r+.587*g+.114*b;r=L+(r-L)*1.2;g=L+(g-L)*1.15;b=L+(b-L)*1.2; // saturation
+        r*=.96;b*=1.08;g+=2;                                             // cool CCD cast
+        if(L>200){const k=(L-200)/55*22;r+=k;g+=k;b+=k*1.1;}              // highlight bloom
+        const n=(Math.random()-.5)*26;r+=n+6;g+=n+6;b+=n+10;              // sensor noise + lifted blacks
+        break;}
+      case"sepia":
+        r=l*1.07+28;g=l*.88+12;b=l*.66;
+        break;
+      case"bw":{const c=(l-128)*1.25+128+(Math.random()-.5)*10;r=g=b=c;break;}
+      case"vivid":
+        r=l+(r-l)*1.6;g=l+(g-l)*1.6;b=l+(b-l)*1.6;
+        r=(r-128)*1.08+128;g=(g-128)*1.08+128;b=(b-128)*1.08+128;
+        break;
+      case"cool":
+        r*=.82;g*=.98;b=b*1.2+8;
+        break;
+      case"neg":
+        r=255-r;g=255-g;b=255-b;
+        break;
+    }
+    d[i]=cl(r);d[i+1]=cl(g);d[i+2]=cl(b);
+  }
+  ctx.putImageData(img,0,0);
+  if(id==="ccd"){ // soft vignette
+    const gr=ctx.createRadialGradient(w/2,h/2,h*.35,w/2,h/2,h*.85);
+    gr.addColorStop(0,"rgba(0,0,0,0)");gr.addColorStop(1,"rgba(0,0,20,.35)");
+    ctx.fillStyle=gr;ctx.fillRect(0,0,w,h);
+  }
+}
+function dateText(){
+  const n=new Date(),p=v=>String(v).padStart(2,"0");
+  return `'${String(n.getFullYear()).slice(2)} ${p(n.getMonth()+1)} ${p(n.getDate())}`;
+}
+function drawStamp(ctx,w,h){
+  const s=Math.round(h*.055);
+  ctx.font=`bold ${s}px "Courier New",monospace`;ctx.textAlign="right";ctx.textBaseline="alphabetic";
+  ctx.shadowColor="rgba(255,120,0,.8)";ctx.shadowBlur=s*.25;ctx.fillStyle="#ff9a1f";
+  ctx.fillText(dateText(),w-s*.8,h-s*.8);ctx.shadowBlur=0;
+}
+
+/* ---------- Camera ---------- */
+const vid=$("vid"),view=$("view"),vctx=view.getContext("2d",{willReadFrequently:true});
+let stream,facing="environment",running=false,count=0;
+async function startCam(){
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1920},height:{ideal:1440}},audio:false});
+    vid.srcObject=stream;await vid.play();
+    if(!running){running=true;requestAnimationFrame(loop);}
+  }catch(e){
+    alert("Camera not available. Open this page over HTTPS (or localhost) and allow camera access.");
+  }
+}
+function drawFrame(canvas,ctx,W,H,fxId){
+  const vw=vid.videoWidth,vh=vid.videoHeight;if(!vw)return false;
+  const target=W/H,src=vw/vh;let sw=vw,sh=vh,sx=0,sy=0;
+  if(src>target){sw=vh*target;sx=(vw-sw)/2}else{sh=vw/target;sy=(vh-sh)/2}
+  if(fxId==="lofi"){
+    const t=document.createElement("canvas");t.width=160;t.height=120;
+    t.getContext("2d").drawImage(vid,sx,sy,sw,sh,0,0,160,120);
+    ctx.imageSmoothingEnabled=false;ctx.drawImage(t,0,0,W,H);ctx.imageSmoothingEnabled=true;
+  }else ctx.drawImage(vid,sx,sy,sw,sh,0,0,W,H);
+  applyFx(ctx,W,H,fxId);
+  return true;
+}
+function loop(){
+  drawFrame(view,vctx,640,480,FX[fxIdx].id);
+  if(stamp)drawStamp(vctx,640,480);
+  requestAnimationFrame(loop);
+}
+async function shoot(){
+  const c=document.createElement("canvas"),W=1280,H=960,ctx=c.getContext("2d",{willReadFrequently:true});
+  c.width=W;c.height=H;
+  if(!drawFrame(c,ctx,W,H,FX[fxIdx].id))return;
+  if(stamp)drawStamp(ctx,W,H);
+  $("flash").classList.remove("go");void $("flash").offsetWidth;$("flash").classList.add("go");
+  const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.92));
+  const sealed=await seal(await blob.arrayBuffer());
+  await rq(tx("shots","readwrite").add({iv:sealed.iv,data:sealed.data,fx:FX[fxIdx].id,t:Date.now()}));
+  count++;updHud();
+}
+function updHud(){
+  $("hInfo").textContent="▮▮▮ "+count;
+  $("hEff").textContent=FX[fxIdx].name.toUpperCase();
+  $("effName").textContent=FX[fxIdx].name;
+}
+const setFx=d=>{fxIdx=(fxIdx+d+FX.length)%FX.length;updHud();};
+
+/* ---------- Gallery ---------- */
+let urls=[],current=null;
+async function showGallery(){
+  urls.forEach(URL.revokeObjectURL);urls=[];
+  const grid=$("grid");grid.innerHTML="";
+  const all=await rq(tx("shots").getAll());
+  $("empty").style.display=all.length?"none":"block";
+  for(const s of all.reverse()){
+    try{
+      const u=URL.createObjectURL(new Blob([await open(s)],{type:"image/jpeg"}));urls.push(u);
+      const im=new Image();im.src=u;im.alt="Photo";im.onclick=()=>openPhoto(s,u);grid.appendChild(im);
+    }catch(e){}
+  }
+  $("gal").classList.add("on");
+}
+function openPhoto(s,u){current={s,u};$("big").src=u;$("viewer").classList.add("on");}
+$("vBack").onclick=()=>$("viewer").classList.remove("on");
+$("vDel").onclick=async()=>{
+  if(!confirm("Delete this photo permanently?"))return;
+  await rq(tx("shots","readwrite").delete(current.s.id));
+  $("viewer").classList.remove("on");count=Math.max(0,count-1);updHud();showGallery();
+};
+$("vSave").onclick=()=>{ // only saves to the device if you tap this
+  const a=document.createElement("a");a.href=current.u;a.download="digicam_"+current.s.t+".jpg";a.click();
+};
+$("openGal").onclick=showGallery;
+$("closeGal").onclick=()=>{$("gal").classList.remove("on");urls.forEach(URL.revokeObjectURL);urls=[];};
+
+/* ---------- Controls ---------- */
+$("shot").onclick=shoot;
+$("prev").onclick=()=>setFx(-1);
+$("next").onclick=()=>setFx(1);
+$("flip").onclick=()=>{facing=facing==="environment"?"user":"environment";startCam();};
+$("stampBtn").onclick=()=>{stamp=!stamp;$("stampBtn").textContent="Date: "+(stamp?"on":"off");};
+document.addEventListener("keydown",e=>{if(e.key==="ArrowLeft")setFx(-1);if(e.key==="ArrowRight")setFx(1);if(e.key===" "||e.key==="Enter"){if(!$("lock").classList.contains("on")&&document.activeElement.tagName!=="BUTTON"){e.preventDefault();shoot();}}});
+
+/* ---------- Lock screen ---------- */
+async function init(){
+  db=await idb();
+  const salt=await rq(tx("meta").get("salt"));
+  if(!salt){
+    $("lockTitle").textContent="Create your PIN";
+    $("lockMsg").textContent="Your photos are encrypted with this PIN and stay only in this browser. If you forget it, they cannot be recovered.";
+    $("pin2").style.display="";
+  }else{
+    $("lockTitle").textContent="DigiCam locked";
+    $("lockMsg").textContent="Enter your PIN to open the camera.";
+  }
+  $("unlock").onclick=async()=>{
+    $("err").textContent="";
+    const pin=$("pin").value;
+    if(pin.length<4){$("err").textContent="Use at least 4 digits.";return;}
+    try{
+      if(!salt){
+        if(pin!==$("pin2").value){$("err").textContent="PINs do not match.";return;}
+        const s=crypto.getRandomValues(new Uint8Array(16));
+        key=await derive(pin,s);
+        const chk=await seal(enc.encode("digicam-ok"));
+        await rq(tx("meta","readwrite").put(s,"salt"));
+        await rq(tx("meta","readwrite").put(chk,"check"));
+      }else{
+        key=await derive(pin,salt);
+        const chk=await rq(tx("meta").get("check"));
+        try{if(dec.decode(await open(chk))!=="digicam-ok")throw 0;}
+        catch(e){key=null;$("err").textContent="Wrong PIN.";return;}
+      }
+      count=(await rq(tx("shots").count()));updHud();
+      $("pin").value=$("pin2").value="";
+      $("lock").classList.remove("on");
+      startCam();
+    }catch(e){$("err").textContent="Could not unlock. Try again.";}
+  };
+  $("pin").addEventListener("keydown",e=>{if(e.key==="Enter"&&salt)$("unlock").click();});
+}
+init();
+updHud();
+</script>
+</body>
+</html>
